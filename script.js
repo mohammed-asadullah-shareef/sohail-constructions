@@ -154,59 +154,68 @@ document.addEventListener('keydown', (e) => {
 const contactForm = document.getElementById('contactForm');
 const formStatus = document.getElementById('formStatus');
 
-contactForm.addEventListener('submit', function(e) {
+contactForm.addEventListener('submit', async function(e) {
     e.preventDefault();
-    
-    const formData = new FormData(contactForm);
+
     const formButton = contactForm.querySelector('.form__button');
     const buttonText = formButton.querySelector('.button__text');
     const originalText = buttonText.textContent;
-    
+
     // Show loading state
     formButton.disabled = true;
     buttonText.textContent = 'Sending...';
     formStatus.style.display = 'none';
-    
-    // Convert FormData to JSON
-    const object = Object.fromEntries(formData);
-    const json = JSON.stringify(object);
-    
     showFormStatus('info', 'Please wait...');
-    
-    fetch('https://api.web3forms.com/submit', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-        },
-        body: json
-    })
-    .then(async (response) => {
-        let json = await response.json();
+
+    try {
+        // ✅ Securely fetch Web3Forms key from backend
+        const secretRes = await fetch("https://project-secret-backend.onrender.com/secret/sohailconstructions/web3form");
+        const secretData = await secretRes.json();
+
+        if (!secretData.value) {
+            throw new Error("Could not load access key");
+        }
+
+        // ✅ Inject the access key into hidden field
+        document.getElementById("accessKey").value = secretData.value;
+
+        // Convert form data to JSON
+        const formData = new FormData(contactForm);
+        const object = Object.fromEntries(formData);
+        const json = JSON.stringify(object);
+
+        const response = await fetch('https://api.web3forms.com/submit', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: json
+        });
+
+        const result = await response.json();
+
         if (response.status == 200) {
             showFormStatus('success', 'Thank you! Your message has been sent successfully. We will contact you soon.');
             contactForm.reset();
         } else {
-            console.log(response);
-            showFormStatus('error', json.message || 'Sorry, there was an error sending your message. Please try again.');
+            showFormStatus('error', result.message || 'Sorry, there was an error sending your message. Please try again.');
         }
-    })
-    .catch(error => {
+
+    } catch (error) {
         console.log(error);
         showFormStatus('error', 'Something went wrong! Please try again or contact us directly.');
-    })
-    .finally(function() {
+    } finally {
         // Reset button state
         formButton.disabled = false;
         buttonText.textContent = originalText;
-        
-        // Auto-hide success message after 5 seconds
+
         setTimeout(() => {
             if (formStatus.classList.contains('success')) {
                 formStatus.style.display = 'none';
             }
         }, 5000);
-    });
+    }
 });
 
 function showFormStatus(type, message) {
@@ -214,7 +223,6 @@ function showFormStatus(type, message) {
     formStatus.textContent = message;
     formStatus.style.display = 'block';
 }
-
 // Enhanced mobile-friendly animations
 function initMobileAnimations() {
     // Check if device supports animations properly
